@@ -10,9 +10,9 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\Routing\Annotation\Route;
 
 
-/**
- * @Route("/users")
- */
+    /**
+     * @Route("/api/v1/users")
+     */
 class UserController extends AbstractController
 {
     /**
@@ -70,7 +70,10 @@ class UserController extends AbstractController
      */
     public function optionsUsers(): JsonResponse
     {
-        return $this->createResponse(Response::HTTP_OK, 'GET, POST, DELETE, OPTIONS');
+        return new JsonResponse([
+            'code' => Response::HTTP_OK,
+            'message' => "GET, POST, DELETE, OPTIONS"
+        ],Response::HTTP_OK, array("Allow" => "GET, POST, DELETE, OPTIONS"));
     }
 
     /**
@@ -163,7 +166,10 @@ class UserController extends AbstractController
      */
     public function optionsUserById(?User $user): JsonResponse
     {
-        return $this->createResponse(Response::HTTP_OK, 'GET, PUT, DELETE, OPTIONS');
+        return new JsonResponse([
+            'code' => Response::HTTP_OK,
+            'message' => "GET, PUT, DELETE, OPTIONS"
+        ],Response::HTTP_OK, array("Allow" => "GET, PUT, DELETE, OPTIONS"));
     }
 
     /**
