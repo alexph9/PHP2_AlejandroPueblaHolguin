@@ -3,91 +3,170 @@
 namespace App\Controller;
 
 use App\Entity\Result;
-use App\Form\ResultType;
+use App\Entity\User;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\Routing\Annotation\Route;
 
+
 /**
- * @Route("/result")
+ * @Route("/results")
  */
 class ResultController extends AbstractController
 {
     /**
-     * @Route("/", name="result_index", methods={"GET"})
+     * @Route("", name="get_all_results", methods={ Request::METHOD_GET })
      */
-    public function index(): Response
+    public function getResults(): JsonResponse
     {
         $results = $this->getDoctrine()
             ->getRepository(Result::class)
             ->findAll();
 
-        return $this->render('result/index.html.twig', ['results' => $results]);
+        return ($results === null)
+            ? $this->createResponse(Response::HTTP_NOT_FOUND, 'NOT FOUND')
+            : new JsonResponse($results, Response::HTTP_OK);
     }
 
     /**
-     * @Route("/new", name="result_new", methods={"GET","POST"})
+     * @Route("", name="create_result", methods={Request::METHOD_POST })
      */
-    public function new(Request $request): Response
+    public function createResult(Request $request): JsonResponse
     {
-        $result = new Result();
-        $form = $this->createForm(ResultType::class, $result);
-        $form->handleRequest($request);
 
-        if ($form->isSubmitted() && $form->isValid()) {
-            $entityManager = $this->getDoctrine()->getManager();
-            $entityManager->persist($result);
-            $entityManager->flush();
+        $bodyJSON = $request->getContent();
+        $body = json_decode($bodyJSON, true);
+        $resultValue = $body['result'] ?? null;
+        $userId = $body['user'] ?? null;
+        $time = new \DateTime('now');
 
-            return $this->redirectToRoute('result_index');
+        if($resultValue === null || $userId === null){
+            return $this->createResponse(Response::HTTP_UNPROCESSABLE_ENTITY, 'UNPROCESSABLE ENTITIES');
         }
 
-        return $this->render('result/new.html.twig', [
-            'result' => $result,
-            'form' => $form->createView(),
-        ]);
-    }
+        $entityManager = $this->getDoctrine()->getManager();
+        $user = $this->getDoctrine()->getRepository(User::class)->find($userId);
 
-    /**
-     * @Route("/{id}", name="result_show", methods={"GET"})
-     */
-    public function show(Result $result): Response
-    {
-        return $this->render('result/show.html.twig', ['result' => $result]);
-    }
-
-    /**
-     * @Route("/{id}/edit", name="result_edit", methods={"GET","POST"})
-     */
-    public function edit(Request $request, Result $result): Response
-    {
-        $form = $this->createForm(ResultType::class, $result);
-        $form->handleRequest($request);
-
-        if ($form->isSubmitted() && $form->isValid()) {
-            $this->getDoctrine()->getManager()->flush();
-
-            return $this->redirectToRoute('result_index', ['id' => $result->getId()]);
+        if($user === null){
+            return $this->createResponse(Response::HTTP_NOT_FOUND, 'USER NOT FOUND');
         }
 
-        return $this->render('result/edit.html.twig', [
-            'result' => $result,
-            'form' => $form->createView(),
-        ]);
+        $result = new Result($resultValue, $user, $time);
+        $entityManager->persist($result);
+        $entityManager->flush();
+        return new JsonResponse($result, Response::HTTP_CREATED);
     }
 
     /**
-     * @Route("/{id}", name="result_delete", methods={"DELETE"})
+     * @Route("", name="options_results", methods={ Request::METHOD_OPTIONS })
      */
-    public function delete(Request $request, Result $result): Response
+    public function optionsResults(): JsonResponse
     {
-        if ($this->isCsrfTokenValid('delete'.$result->getId(), $request->request->get('_token'))) {
-            $entityManager = $this->getDoctrine()->getManager();
+        return $this->createResponse(Response::HTTP_OK, 'GET, POST, DELETE, OPTIONS');
+    }
+
+    /**
+     * @Route("", name="delete_results", methods={ Request::METHOD_DELETE })
+     */
+    public function deleteResults(): JsonResponse
+    {
+        $entityManager = $this->getDoctrine()->getManager();
+        $results = $this->getDoctrine()
+            ->getRepository(Result::class)
+            ->findAll();
+
+        foreach ($results as $result) {
             $entityManager->remove($result);
             $entityManager->flush();
         }
+        return new JsonResponse( null, Response::HTTP_OK);
+    }
 
-        return $this->redirectToRoute('result_index');
+    /**
+     * @Route("/{id}", name="get_result_byId", methods={Request::METHOD_GET})
+     */
+    public function getResultById(Result $result): JsonResponse
+    {
+        return ($result === null)
+            ? $this->createResponse(Response::HTTP_NOT_FOUND, 'NOT FOUND')
+            : new JsonResponse($result, Response::HTTP_OK);
+    }
+
+    /**
+     * @Route("/{id}", name="update_result", methods={Request::METHOD_PUT})
+     */
+    public function updateResult(?Result $result, Request $request): JsonResponse
+    {
+        if ($result === null) {
+            return $this->createResponse(Response::HTTP_NOT_FOUND, 'NOT FOUND');
+        }
+
+        $bodyJSON = $request->getContent();
+        $body = json_decode($bodyJSON, true);
+        $resultValue = $body['result'] ?? null;
+        $userId = $body['user'] ?? null;
+        $time = new \DateTime('now');
+
+        if($userId === null || $resultValue === null){
+            return $this->createResponse(Response::HTTP_UNPROCESSABLE_ENTITY, 'UNPROCESSABLE ENTITIES');
+        }
+
+        $entityManager = $this->getDoctrine()->getManager();
+        $user = $this->getDoctrine()->getRepository(User::class)->find($userId);
+
+        if($user === null){
+            return $this->createResponse(Response::HTTP_NOT_FOUND, 'USER NOT FOUND');
+        }
+
+        $result->setResult($resultValue);
+        $result->setUser($user);
+        $result->setTime($time);
+
+        $entityManager->persist($result);
+        $entityManager->flush();
+        return new JsonResponse($result, Response::HTTP_ACCEPTED);
+    }
+
+    /**
+     * @Route("/{id}", name="delete_result", methods={Request::METHOD_DELETE})
+     */
+    public function deleteResultById(?Result $result): JsonResponse{
+        $entityManager = $this->getDoctrine()->getManager();
+        if($result === null) {
+            return $this->createResponse(Response::HTTP_NOT_FOUND, 'NOT FOUND');
+        } else {
+            $entityManager->remove($result);
+            $entityManager->flush();
+            return new JsonResponse( null, Response::HTTP_OK);
+        }
+    }
+
+    /**
+     * @Route("/{id}", name="options_resultById", methods={ Request::METHOD_OPTIONS })
+     */
+    public function optionsResultById(?Result $result): JsonResponse
+    {
+        return $this->createResponse(Response::HTTP_OK, 'GET, PUT, DELETE, OPTIONS');
+    }
+
+    /**
+     * @param int $statusCode
+     * @param string $message
+     *
+     * @return JsonResponse
+     */
+    private function createResponse(int $statusCode, string $message): JsonResponse
+    {
+        return new JsonResponse(
+            [
+                'message' => [
+                    'code' => $statusCode,
+                    'message' => $message
+                ]
+            ],
+            $statusCode
+        );
     }
 }
